@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -29,7 +30,7 @@ type Test struct {
 }
 
 type Resources struct {
-	Time time.Time
+	Time time.Duration
 }
 
 func NewTest(id string, code string, language ProgrammingLang, executionDir string ,testCases []TestCase) *Test {
@@ -39,7 +40,7 @@ func NewTest(id string, code string, language ProgrammingLang, executionDir stri
 		ID: id,
 		Code:code,
 		Language: language,
-		ExecutionDir: path.Join(executionDir, id)
+		ExecutionDir: path.Join(executionDir, id),
 		TestCases: testCases,
 
 		maxResource: Resources {
@@ -87,6 +88,7 @@ func(t *Test) init() error {
 	if err != nil {
 		return fmt.Errorf("unable to create execution dir: %w", err)
 	}
+
 	filePath := path.Join(t.ExecutionDir, t.codeFileName) 
 	if err := t.saveCode(filePath); err != nil {
 		return err
@@ -100,7 +102,7 @@ func (t *Test) saveCode(filePath string) error{
 		err error
 	)
 	
-	file, err = os.OpenFile(filePath, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, 0600)
+	file, err := os.OpenFile(filePath, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("Unable to open code file: %w", err)
 	} 
@@ -118,11 +120,11 @@ func (t *Test) saveCode(filePath string) error{
 }
 
 func(t *Test) execute() error {
-	var  {
+	var  (
 		err error
-	}
+	)
 
-	args, err := t.getCommandParams()
+	cmd, args, err := t.getCommandParams()
 	if err != nil {
 		return err
 	}
@@ -130,8 +132,9 @@ func(t *Test) execute() error {
 	// create command with a timeout
 	ctx, cancel := context.WithTimeout(context.Background(), t.maxResource.Time)
 	defer cancel()
-	t.cmd = exec.CommandContext(ctx, args...)
-
+	t.cmd = exec.CommandContext(ctx, cmd, args...)
+	
+	fmt.Println("running command", cmd, args)
 	// TODO: set permissions
 
 	// Run the command and wait for execution
@@ -144,29 +147,30 @@ func(t *Test) execute() error {
 
 func (t *Test) cleanup() error {
 	// delete folder
-	if err := os.Remove(t.ExecutionDir); err != nil {
+	if err := os.RemoveAll(t.ExecutionDir); err != nil {
 		return fmt.Errorf("unable to do cleanup: %w", err)
 	}
 
 	return nil
 }
 
-func getCommandParams(t *Test) ([]string, err) {
+func(t *Test) getCommandParams() (string, []string, error) {
 	baseCmd := ""
 
 	switch t.Language {
 	case PYTHON: baseCmd = "python"
-	default: return []string{}, errors.New(fmt.Sprintf("no command mapping for language: %v", language))
+	default: return "", []string{}, errors.New(fmt.Sprintf("no command mapping for language: %v", t.Language))
 	}
 
-	args := []string{baseCmd, t.codeFileName}
+	file := path.Join(t.ExecutionDir, t.codeFileName)
+	args := []string{file}
 
-	return args, nil
+	return baseCmd, args, nil
 }
 
-func getFileName(language ProgrammingLang) (string, err) {
+func getFileName(language ProgrammingLang) (string, error) {
 	switch language {
-	case PYTHON: return "main.py"
+	case PYTHON: return "main.py", nil
 	}
-	return errors.New(fmt.Sprintf("No file name mapping found for language: %v", language))
+	return "", errors.New(fmt.Sprintf("No file name mapping found for language: %v", language))
 }

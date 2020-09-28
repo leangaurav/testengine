@@ -4,20 +4,20 @@ type IOType int
 
 const (
 	CONSOLE_INPUT IOType = iota 
-	FILE_INPUT    IOType
+	FILE_INPUT
 )
 
 type TestInput struct {
-	Type IOType,
-	Data string,
+	Type IOType
+	Data string
 }
 
 type TestOutput struct {
-	Type IOType,
-	Data string,
+	Type IOType
+	Data string
 }
 
 type TestCase struct {
-	Input TestInput,
-	Output TestOutput,
+	Input TestInput
+	Output TestOutput
 }
